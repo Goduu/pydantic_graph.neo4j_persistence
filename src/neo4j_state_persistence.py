@@ -12,7 +12,6 @@ from uuid import UUID, uuid4
 import json
 from datetime import datetime
 import asyncio
-import sys
 
 import pydantic
 from pydantic_graph import BaseNode, End
