@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import json
 from datetime import datetime
 import asyncio
+import sys
 
 import pydantic
 from pydantic_graph import BaseNode, End
@@ -97,7 +98,8 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
                     print(
                         "[Neo4jStatePersistence.close] Async driver closed successfully")
         except Exception as e:
-            print(f"[Neo4jStatePersistence.close] Error closing drivers: {e}")
+            if self.verbose:
+                print(f"[Neo4jStatePersistence.close] Error closing drivers: {e}")
 
     def __del__(self):
         """Ensure drivers are closed when the object is destroyed."""
@@ -150,29 +152,28 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
             print(
                 f"[Neo4jStatePersistence.snapshot_node_if_new] Checking snapshot {snapshot_id} for node {next_node.get_node_id()}")
 
-        async with self.async_driver as driver:
-            async with driver.session() as session:
-                query_result = await session.run(
-                    """
-                    MATCH (s:NodeSnapshot {id: $id})
-                    RETURN s as snapshot
-                    """,
-                    {
-                        "id": snapshot_id
-                    }
-                )
+        async with self.async_driver.session() as session:
+            query_result = await session.run(
+                """
+                MATCH (s:NodeSnapshot {id: $id})
+                RETURN s as snapshot
+                """,
+                {
+                    "id": snapshot_id
+                }
+            )
 
-                snapshot = await query_result.single()
-                if not snapshot:
-                    if self.verbose:
-                        print(
-                            f"[Neo4jStatePersistence.snapshot_node_if_new] Creating new snapshot for {snapshot_id}")
+            snapshot = await query_result.single()
+            if not snapshot:
+                if self.verbose:
+                    print(
+                        f"[Neo4jStatePersistence.snapshot_node_if_new] Creating new snapshot for {snapshot_id}")
 
-                    await self._save(NodeSnapshot(state=state, node=next_node))
-                else:
-                    if self.verbose:
-                        print(
-                            f"[Neo4jStatePersistence.snapshot_node_if_new] Snapshot {snapshot_id} already exists")
+                await self._save(NodeSnapshot(state=state, node=next_node))
+            else:
+                if self.verbose:
+                    print(
+                        f"[Neo4jStatePersistence.snapshot_node_if_new] Snapshot {snapshot_id} already exists")
 
     async def snapshot_end(self, state: StateT, end: End[RunEndT]) -> None:
         """
@@ -204,53 +205,52 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
         if self.verbose:
             print(
                 f"[Neo4jStatePersistence.record_run] Starting run for snapshot {snapshot_id}")
-        async with self.async_driver as driver:
-            async with driver.session() as session:
-                query_result = await session.run(
-                    """
-                    MATCH (s:NodeSnapshot {id: $id})
-                    RETURN s as snapshot
-                    """,
-                    {
-                        "id": snapshot_id
-                    }
-                )
-                single_snapshot = await query_result.single()
-                if single_snapshot is None:
-                    raise LookupError(
-                        f"No snapshot found with id={snapshot_id!r}")
+        async with self.async_driver.session() as session:
+            query_result = await session.run(
+                """
+                MATCH (s:NodeSnapshot {id: $id})
+                RETURN s as snapshot
+                """,
+                {
+                    "id": snapshot_id
+                }
+            )
+            single_snapshot = await query_result.single()
+            if single_snapshot is None:
+                raise LookupError(
+                    f"No snapshot found with id={snapshot_id!r}")
 
-                snapshot = NodeSnapshot(**single_snapshot.get('snapshot'))
-                if (not snapshot):
-                    if self.verbose:
-                        print(
-                            f"[Neo4jStatePersistence.record_run] No snapshot found with id={snapshot_id}")
-                    raise LookupError(
-                        f'No snapshot found with id={snapshot_id!r}')
-
-                GraphNodeStatusError.check(snapshot.status)
-
-                state_dict = json.loads(
-                    serialize_complex_object(snapshot.state))
-                node_dict = json.loads(serialize_complex_object(snapshot.node))
-                snapshot.state = self._deserialize_state(state_dict)
-                snapshot.node = node_dict
-                assert isinstance(
-                    snapshot, NodeSnapshot), 'Only NodeSnapshot can be recorded'
+            snapshot = NodeSnapshot(**single_snapshot.get('snapshot'))
+            if (not snapshot):
                 if self.verbose:
                     print(
-                        f"[Neo4jStatePersistence.record_run] Setting status to running for {snapshot_id}")
-                await session.run(
-                    """
-                    MATCH (s:NodeSnapshot {id: $id})
-                    SET s.status = 'running'
-                    SET s.start_ts = datetime()
-                    RETURN s
-                    """,
-                    {
-                        "id": snapshot_id
-                    }
-                )
+                        f"[Neo4jStatePersistence.record_run] No snapshot found with id={snapshot_id}")
+                raise LookupError(
+                    f'No snapshot found with id={snapshot_id!r}')
+
+            GraphNodeStatusError.check(snapshot.status)
+
+            state_dict = json.loads(
+                serialize_complex_object(snapshot.state))
+            node_dict = json.loads(serialize_complex_object(snapshot.node))
+            snapshot.state = self._deserialize_state(state_dict)
+            snapshot.node = node_dict
+            assert isinstance(
+                snapshot, NodeSnapshot), 'Only NodeSnapshot can be recorded'
+            if self.verbose:
+                print(
+                    f"[Neo4jStatePersistence.record_run] Setting status to running for {snapshot_id}")
+            await session.run(
+                """
+                MATCH (s:NodeSnapshot {id: $id})
+                SET s.status = 'running'
+                SET s.start_ts = datetime()
+                RETURN s
+                """,
+                {
+                    "id": snapshot_id
+                }
+            )
 
         start = perf_counter()
         try:
@@ -283,61 +283,60 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
         if self.verbose:
             print(
                 f"[Neo4jStatePersistence.load_next] Loading next snapshot for execution {self.execution_id}")
-        async with self.async_driver as driver:
-            async with driver.session() as session:
-                query_results = await session.run(
-                    """
-                    MATCH (e:Execution {id: $execution_id})-[:HAS_SNAPSHOT]->(s:NodeSnapshot)
-                    WHERE s.status = 'created'
-                    ORDER BY s.start_ts DESC
-                    LIMIT 1
-                    RETURN s
-                    """,
-                    {
-                        "execution_id": self.execution_id
-                    }
-                )
-                snapshot_node = await query_results.single()
+        async with self.async_driver.session() as session:
+            query_results = await session.run(
+                """
+                MATCH (e:Execution {id: $execution_id})-[:HAS_SNAPSHOT]->(s:NodeSnapshot)
+                WHERE s.status = 'created'
+                ORDER BY s.start_ts DESC
+                LIMIT 1
+                RETURN s
+                """,
+                {
+                    "execution_id": self.execution_id
+                }
+            )
+            snapshot_node = await query_results.single()
 
-                if not snapshot_node:
-                    print(
-                        "[Neo4jStatePersistence.load_next] No snapshots found with status 'created'")
-                    return None
+            if not snapshot_node:
+                print(
+                    "[Neo4jStatePersistence.load_next] No snapshots found with status 'created'")
+                return None
 
-                snapshot = NodeSnapshot(**snapshot_node['s'])
-                state_dict = json.loads(
-                    serialize_complex_object(snapshot.state))
-                node_dict = json.loads(serialize_complex_object(snapshot.node))
-                snapshot.state = self._deserialize_state(state_dict)
-                snapshot.node = node_dict
+            snapshot = NodeSnapshot(**snapshot_node['s'])
+            state_dict = json.loads(
+                serialize_complex_object(snapshot.state))
+            node_dict = json.loads(serialize_complex_object(snapshot.node))
+            snapshot.state = self._deserialize_state(state_dict)
+            snapshot.node = node_dict
 
-                assert isinstance(
-                    snapshot, NodeSnapshot), 'Only NodeSnapshot can be loaded'
-                if self.verbose:
-                    print(
-                        f"[Neo4jStatePersistence.load_next] Setting status to pending for {snapshot.id}")
+            assert isinstance(
+                snapshot, NodeSnapshot), 'Only NodeSnapshot can be loaded'
+            if self.verbose:
+                print(
+                    f"[Neo4jStatePersistence.load_next] Setting status to pending for {snapshot.id}")
 
-                updated_result = await session.run(
-                    """
-                    MATCH (s:NodeSnapshot {id: $id})
-                    SET s.status = 'pending'
-                    RETURN s
-                    """,
-                    {
-                        "id": snapshot.id
-                    }
-                )
+            updated_result = await session.run(
+                """
+                MATCH (s:NodeSnapshot {id: $id})
+                SET s.status = 'pending'
+                RETURN s
+                """,
+                {
+                    "id": snapshot.id
+                }
+            )
 
-                updated_snapshot_single = await updated_result.single()
-                updated_snapshot = NodeSnapshot(
-                    **updated_snapshot_single.data()['s'])
-                state_dict = json.loads(
-                    serialize_complex_object(updated_snapshot.state))
-                node_dict = json.loads(
-                    serialize_complex_object(updated_snapshot.node))
-                updated_snapshot.state = self._deserialize_state(state_dict)
-                updated_snapshot.node = node_dict
-                return updated_snapshot
+            updated_snapshot_single = await updated_result.single()
+            updated_snapshot = NodeSnapshot(
+                **updated_snapshot_single.data()['s'])
+            state_dict = json.loads(
+                serialize_complex_object(updated_snapshot.state))
+            node_dict = json.loads(
+                serialize_complex_object(updated_snapshot.node))
+            updated_snapshot.state = self._deserialize_state(state_dict)
+            updated_snapshot.node = node_dict
+            return updated_snapshot
 
     def should_set_types(self) -> bool:
         if self.verbose:
@@ -445,12 +444,13 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
 
         # Serialize state and node with complex object handling
         state_dict = serialize_complex_object(snapshot.state)
-        node_dict = serialize_complex_object(snapshot.node)
 
         state_json = json.dumps(state_dict)
-        node_json = json.dumps(node_dict)
 
         async with self.async_driver.session() as session:
+            node_dict = serialize_complex_object(snapshot.node)
+            node_json = json.dumps(node_dict)
+
             record = None
 
             if isinstance(snapshot, NodeSnapshot):
@@ -485,6 +485,8 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
                 )
                 record = await result.single()
             elif isinstance(snapshot, EndSnapshot):
+                result_dict = serialize_complex_object(snapshot.result)
+                result_json = json.dumps(result_dict)
                 result = await session.run(
                     """
                     MERGE (e:Execution {id: $execution_id})
@@ -492,21 +494,20 @@ class Neo4jStatePersistence(BaseStatePersistence[StateT, RunEndT]):
                     WITH e
                     CREATE (s:EndSnapshot {
                         id: $id,
-                        duration: $duration,
-                        start_ts: $start_ts,
-                        status: $status,
+                        ts: $ts,
                         kind: $kind
                     })
                     SET s.result = $result
+                    SET s.state = $state
                     RETURN s as snapshot
                     """,
                     {
-                        "id": snapshot.id,
-                        "result": snapshot.result,
                         "execution_id": self.execution_id,
+                        "id": snapshot.id,
                         "ts": snapshot.ts,
-                        "status": snapshot.status,
-                        "kind": snapshot.kind
+                        "kind": snapshot.kind,
+                        "result": result_json,
+                        "state": state_json,
                     }
                 )
                 record = await result.single()
