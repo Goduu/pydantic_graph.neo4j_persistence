@@ -17,10 +17,10 @@
 
 ## Installation
 
-To install `pydantic_graph.neo4j_persistence`, use pip:
+To install `pydantic_graph_neo4j_persistence`, use pip:
 
 ```bash
-pip install pydantic-graph-neo4j-persistence
+pip install pydantic_graph_neo4j_persistence
 ```
 # Quick Start
 
