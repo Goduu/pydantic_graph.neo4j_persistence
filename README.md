@@ -1,7 +1,5 @@
-from pydantic_graph_neo4j_persistence import Neo4jStatePersistence
 
-# pydantic_graph.neo4j_persistence
-
+# Pydantic Graph - Neo4j Persistence
 
 [![PyPI Version](https://badge.fury.io/py/pydantic-graph-neo4j-persistence.svg)](https://pypi.org/project/pydantic-graph-neo4j-persistence/)
 [![Build Status](https://travis-ci.org/yourusername/pydantic_graph.neo4j_persistence.svg?branch=main)](https://travis-ci.org/yourusername/pydantic_graph.neo4j_persistence)
@@ -9,7 +7,7 @@ from pydantic_graph_neo4j_persistence import Neo4jStatePersistence
 
 ## Overview
 
-`pydantic_graph.neo4j_persistence` is a persistence adapter for Neo4j that seamlessly integrates with Pydantic models. It enables saving node snapshots directly into a Neo4j database, facilitating efficient graph data management within Python applications.
+`pydantic_graph_neo4j_persistence` is a persistence adapter for Neo4j that seamlessly integrates with Pydantic models. It enables saving node snapshots directly into a Neo4j database, facilitating efficient graph data management within Python applications.
 
 ## Features
 
@@ -29,6 +27,7 @@ pip install pydantic_graph_neo4j_persistence
 Here is a basic example demonstrating how to use pydantic_graph.neo4j_persistence:
 
 ```python
+from pydantic_graph_neo4j_persistence import Neo4jStatePersistence
 
 async def run_as_cli(answer: str | None):
     persistence = Neo4jStatePersistence(
@@ -63,6 +62,9 @@ The Neo4jStatePersistence uses and require the following Nodes:
 
 And the following relationship:
 - HAS_SNAPSHOT
+
+(e:Execution) ->[:HAS_SNAPSHOT]->(n:NodeSnapshot)
+(e:Execution) ->[:HAS_SNAPSHOT]->(n:EndSnapshot)
 
 
 # Contributing
