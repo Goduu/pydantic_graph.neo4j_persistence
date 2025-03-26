@@ -2,7 +2,6 @@
 # Pydantic Graph - Neo4j Persistence
 
 [![PyPI Version](https://badge.fury.io/py/pydantic-graph-neo4j-persistence.svg)](https://pypi.org/project/pydantic-graph-neo4j-persistence/)
-[![Build Status](https://travis-ci.org/yourusername/pydantic_graph.neo4j_persistence.svg?branch=main)](https://travis-ci.org/yourusername/pydantic_graph.neo4j_persistence)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
