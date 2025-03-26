@@ -2,5 +2,4 @@
 pydantic>=2.0.0
 pydantic-graph>=0.0.42
 pydantic-ai>=0.0.42
-groq>=0.1.0
 neo4j>=5.0

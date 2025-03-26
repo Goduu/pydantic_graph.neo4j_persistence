@@ -1,3 +1,5 @@
+from pydantic_graph_neo4j_persistence import Neo4jStatePersistence
+
 # pydantic_graph.neo4j_persistence
 
 
@@ -52,6 +54,16 @@ if __name__ == '__main__':
 ```
 
 You can see a full example on the oficial pydantic [documentation](https://ai.pydantic.dev/examples/question-graph/). From there just change the persistence variable to use the `Neo4jStatePersistence`
+
+# Nodes and Relationships
+The Neo4jStatePersistence uses and require the following Nodes: 
+- NodeSnapshot
+- EndSnapshot
+- Execution
+
+And the following relationship:
+- HAS_SNAPSHOT
+
 
 # Contributing
 We welcome contributions to enhance the functionality and usability of 
