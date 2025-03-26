@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pydantic-graph-neo4j-persistence"
-version = "0.1.5"
+version = "0.1.6"
 description = "Neo4j persistence adapter for Pydantic Graph"
 authors = [
     {name = "Goduu", email = "idcangussu@hotmail.com"}

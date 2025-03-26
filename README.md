@@ -63,6 +63,7 @@ And the following relationship:
 - HAS_SNAPSHOT
 
 (e:Execution) ->[:HAS_SNAPSHOT]->(n:NodeSnapshot)
+
 (e:Execution) ->[:HAS_SNAPSHOT]->(n:EndSnapshot)
 
 
